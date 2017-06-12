@@ -28,3 +28,10 @@ using namespace gl;
 #include <glbinding/CallbackMask.h>
 
 #include <sstream>
+
+using std::vector;
+using std::string;
+using std::stringstream;
+
+#include "lodepng.h"
+#include <functional>

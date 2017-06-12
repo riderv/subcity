@@ -11,6 +11,10 @@ sdl::SDL SDL;
 sdl::Window  Window;
 sdl::GLContext glContext;
 
+struct Local {
+    std::function<void()> cb;
+    ~Local() { cb(); }
+};
 
 std::stringstream& operator<<(std::stringstream& ss, std::vector<char>& vec)
 {
@@ -32,6 +36,24 @@ struct GLErrorStr
     GLErrorStr(std::string&& aMsg): msg(aMsg) {}
     std::string msg;
 };
+
+std::vector<unsigned char> LoadPng(const char* filename)
+{
+    std::vector<unsigned char> image; //the raw pixels
+    unsigned width, height;
+
+    //decode
+    unsigned error = lodepng::decode(image, width, height, filename);
+
+    //if there's an error, display it
+    if(error){
+        string s("LoadPng fail: "); 
+        s += string(lodepng_error_text(error));
+        throw GLErrorStr(s);
+    }
+    //the pixels are now in the vector "image", 4 bytes per pixel, ordered RGBARGBA..., use it as texture, draw it, ...
+    return image;
+}
 
 static void APIENTRY openglCallbackFunction(
     GLenum source,
@@ -97,6 +119,88 @@ struct App
     bool isRun = false;
     GLuint vao = 0;
     GLuint prog = 0;
+    struct TextField
+    {
+        GLuint outTexture = 0;
+        GLuint fontTexture2Darray = 0;
+        struct Glyph{
+            int w=0, h=0;
+            int wCount=0, hCount=0;
+            int TotalCount = 0;
+        }glyph;
+        struct FontAtlas
+        {
+            string fileName;
+            int w=0, h=0;
+        }fontAtlas;
+        int pxOffX = 0, pxOffY = 0;
+        int pxXX = 0, pxYY = 0;
+
+    }text_field;
+    
+    void SetText(int wCount, int hCount, const string& txt) // 
+    {
+        this->text_field.glyph.wCount = wCount;
+        this->text_field.glyph.hCount = hCount;
+
+    }
+    void InitTextField()
+    {
+        // init basic data. TODO: later must be filed from external client (ie config)
+        text_field.glyph.w = 8;
+        text_field.glyph.h = 16;
+        text_field.glyph.hCount = 30;
+        text_field.glyph.wCount = 60;
+        text_field.glyph.TotalCount =  text_field.glyph.hCount * text_field.glyph.wCount;
+        text_field.pxXX = text_field.glyph.wCount * text_field.glyph.w;
+        text_field.pxYY = text_field.glyph.hCount * text_field.glyph.h;
+
+        // loading texture atlas for font
+        text_field.fontAtlas.fileName = "res/fixf_128x256_8x16.png";
+        vector<GLubyte> font_png = LoadPng(text_field.fontAtlas.fileName.c_str());
+        text_field.fontAtlas.w = 128;
+        text_field.fontAtlas.h = 256;
+
+        GLuint tex_font_atlas = 0;
+        Local local = {   [&tex_font_atlas]() { glDeleteTextures(1, &tex_font_atlas); tex_font_atlas = 0; }   };
+        
+        glCreateTextures(GL_TEXTURE_2D, 1, &tex_font_atlas);
+        glTextureStorage2D(tex_font_atlas, 1, GL_RG8UI, 128, 256);
+        glTextureSubImage2D(tex_font_atlas, 0, 0, 0, 128, 256, GL_RGBA, GL_UNSIGNED_BYTE, font_png.data() );
+         
+         
+        // 2d array of 8x16 texture filed from font atlas
+        gl::glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &text_field.fontTexture2Darray);
+        gl::glTextureStorage3D(text_field.fontTexture2Darray, 1, GL_R8UI, text_field.glyph.w, text_field.glyph.h, text_field.glyph.TotalCount);
+
+        const int one_letter_pixels_sz = text_field.glyph.w * text_field.glyph.h;
+        vector<GLbyte> one_letter_pixels(one_letter_pixels_sz);
+        
+        // Copy subimages of letters from atlas to tex-ar-2d
+        int i = 0;
+        for( int yoff=0; yoff < text_field.glyph.h; yoff++ )
+        {
+            for(int xoff=0; xoff < text_field.glyph.w; xoff++)
+            {            
+                glGetTextureSubImage(tex_font_atlas, 0, xoff, yoff, 0,
+                    text_field.glyph.w,
+                    text_field.glyph.h,
+                    1, GL_R8UI, GL_UNSIGNED_BYTE, one_letter_pixels_sz, &one_letter_pixels[0]);
+
+                glTextureSubImage3D(text_field.fontTexture2Darray, 
+                    0, //miplevel
+                    0,0, (i++), //x,y,z offsets
+                    text_field.glyph.w,
+                    text_field.glyph.h,                    
+                    1, //depth
+                    GL_R8UI, GL_UNSIGNED_BYTE,
+                    one_letter_pixels.data());
+            }
+        }
+
+
+    }
+    
     
     void Init()
     {
@@ -165,6 +269,8 @@ void main()
         
         glViewport(0,0, Window.W, Window.H);
         glClearColor(0.0, 0.0, 0.0, 1.0);
+
+        InitTextField();
 
         isRun = true;
     }

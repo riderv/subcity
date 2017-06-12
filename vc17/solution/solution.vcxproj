@@ -72,7 +72,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>d:\lib\glbinding\from_github\glbinding\source\glbinding\include;d:\lib\glbinding\from_github\glbinding\_bin\source\glbinding\include;d:\lib\SDL2\vc\SDL2-2.0.5\include;$(IncludePath)</IncludePath>
+    <IncludePath>d:\lib\glbinding\from_github\glbinding\source\glbinding\include;d:\lib\glbinding\from_github\glbinding\_bin\source\glbinding\include;d:\lib\SDL2\vc\SDL2-2.0.5\include;d:\lib\lodepng-master;$(IncludePath)</IncludePath>
     <OutDir>$(SolutionDir)..\..\</OutDir>
     <LibraryPath>d:\_pro\vc17\subcity;d:\lib\glbinding\from_github\glbinding\_bin\Debug;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
@@ -82,7 +82,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>d:\lib\glbinding\from_github\glbinding\source\glbinding\include;d:\lib\glbinding\from_github\glbinding\_bin\source\glbinding\include;d:\lib\SDL2\vc\SDL2-2.0.5\include;$(IncludePath)</IncludePath>
+    <IncludePath>d:\lib\glbinding\from_github\glbinding\source\glbinding\include;d:\lib\glbinding\from_github\glbinding\_bin\source\glbinding\include;d:\lib\SDL2\vc\SDL2-2.0.5\include;d:\lib\lodepng-master;$(IncludePath)</IncludePath>
     <LibraryPath>d:\_pro\vc17\subcity;d:\lib\glbinding\from_github\glbinding\_bin\Debug;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
