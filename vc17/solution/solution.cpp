@@ -118,8 +118,10 @@ struct App
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
 
+
         glCreateVertexArrays(1, &vao);
         glBindVertexArray(vao);
+
         GLuint vs = glCreateShader(GL_VERTEX_SHADER);
         GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
         prog = glCreateProgram();
@@ -128,13 +130,14 @@ struct App
 R"(#version 440 core
 void main()
 {
-    // TRINGLE STRIP             x    y     z     w
+    // TRINGLE STRIP      x    y     z     w
     const vec4[4] q = { {0.0, 0.0,  0.0,  1.0}, 
                         {0.0, 1.0,  0.0,  1.0}, 
                         {1.0, 0.0,  0.0,  1.0},
-                        {1.1, 1.1,  0.0,  1.0} };
+                        {1.0, 1.0,  0.0,  1.0} };
         vec4 v = q[gl_VertexID];
-        v*=0.1;
+        v.x *= 0.125;
+        v.y *= 0.125;
         gl_Position = v;
 }
 )";
@@ -156,6 +159,7 @@ void main()
         
         glDeleteShader(vs);
         glDeleteShader(fs);
+        
         glUseProgram(prog);
 
         
@@ -166,8 +170,9 @@ void main()
     }
     void Run()
     {
+        glUseProgram(prog);
         glClear(GL_COLOR_BUFFER_BIT);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 3);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
     void OnQuit() { isRun = false; }
     bool IsRun() const { return isRun; }
