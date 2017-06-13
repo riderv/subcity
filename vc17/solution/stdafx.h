@@ -35,3 +35,4 @@ using std::stringstream;
 
 #include "lodepng.h"
 #include <functional>
+#include <assert.h>
