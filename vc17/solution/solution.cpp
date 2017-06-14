@@ -328,8 +328,8 @@ void main()
                         {1.0, 0.0,  0.0,  1.0},
                         {1.0, 1.0,  0.0,  1.0} };
         vec4 v = q[gl_VertexID];
-        v.x -= 0.5; v.x *= 2.0;
-        v.y -= 0.5; v.y *=2.0;
+        v.x -= 0.5;
+        v.y -= 0.5;
         gl_Position = v;
 }
 )";
@@ -342,9 +342,10 @@ void main()
             "layout (location = 0) out vec4 o_color;\n"
             "layout (binding = 0) uniform isampler2D text_buffer;\n"
             "layout (binding = 1) uniform isampler2DArray font_texture;\n"
+            "layout (location = 0)uniform ivec2 quad_offset;"
             "void main(void)\n"
             "{\n"
-            "    ivec2 frag_coord = ivec2(gl_FragCoord.xy);\n"
+            "    ivec2 frag_coord = ivec2(gl_FragCoord.xy) - quad_offset;\n"
             "    ivec2 char_size = textureSize(font_texture, 0).xy;\n"
             "    ivec2 char_location = frag_coord / char_size;\n"
             "    ivec2 texel_coord = frag_coord % char_size;\n"
@@ -382,6 +383,14 @@ void main()
         glActiveTexture(GL_TEXTURE1);
         glBindTextureUnit(1, font_texture);
         
+        int H = Window.H;
+        int quad_offset_x = 200,
+            quad_offset_y = 200;
+
+        
+
+        glUniform2i(0, quad_offset_x, quad_offset_y);
+
         glClearColor(0.7, 0.7, 0.7, 1.0);
 
         
