@@ -7,9 +7,11 @@
 
 
 
-sdl::SDL SDL;
-sdl::Window  Window;
-sdl::GLContext glContext;
+
+SDL_Window  *Window = 0;
+int Window_Width = -1, Window_Height = -1;
+SDL_GLContext glContext = 0;
+
 
 struct Local {
     std::function<void()> cb;
@@ -30,6 +32,13 @@ struct GLError
     GLError(const char* aMsg):msg(aMsg){}
     const char* msg;    
 };
+
+struct SDLError
+{
+    SDLError(const char* aMsg):msg(aMsg){}
+    const char* msg;    
+};
+
 struct GLErrorStr
 {
     GLErrorStr(std::string& aMsg): msg(aMsg) {}
@@ -119,6 +128,7 @@ void LinkProgram(GLuint prog)
 
 struct App
 {
+    App():app(this){}
     bool isRun = false;
     GLuint vao = 0;
     GLuint prog = 0;
@@ -144,38 +154,32 @@ struct App
         // init basic data. TODO: later must be filed from external client (ie config)
 
         // loading texture atlas for font
-        //auto fileName = "d:\\_pro\\vc17\\subcity\\res\\fixf_128x256_8x16.png";
-        //vector<GLubyte> font_png = LoadPng(fileName);
+        auto fileName = "d:\\_pro\\vc17\\subcity\\res\\fixf_128x256_8x16.png";
+        vector<GLubyte> font_png = LoadPng(fileName);
 
-        //struct Local {
-        //    GLuint tex_font_atlas = 0;
-        //    ~Local() { glDeleteTextures(1, &tex_font_atlas); }
-        //} local;
-        //glCreateTextures(GL_TEXTURE_2D, 1, &local.tex_font_atlas);
-        //glTextureStorage2D(local.tex_font_atlas, 1, GL_RGBA8, 256,256);
-        //glTextureSubImage2D(local.tex_font_atlas, 0, 0,0, 256,256, GL_RGBA, GL_UNSIGNED_BYTE, font_png.data() );
+        GLuint tex_font_atlas = 0;
+        struct Local {
+            GLuint &tex_font_atlas_;
+            ~Local() { glDeleteTextures(1, &tex_font_atlas_); }
+        } local {tex_font_atlas};
+        glCreateTextures(GL_TEXTURE_2D, 1, &tex_font_atlas);
+        glTextureStorage2D(tex_font_atlas, 1, GL_R8UI, 128,256);
+        glTextureParameteri(tex_font_atlas, GL_TEXTURE_MIN_FILTER,      GL_NEAREST);
+        glTextureParameteri(tex_font_atlas, GL_TEXTURE_MAG_FILTER,      GL_NEAREST);
+        glTextureParameteri(tex_font_atlas, GL_TEXTURE_WRAP_S,          GL_CLAMP_TO_EDGE);
+        glTextureParameteri(tex_font_atlas, GL_TEXTURE_WRAP_T,          GL_CLAMP_TO_EDGE);
         
-        //glCreateTextures(GL_TEXTURE_2D, 1, &tex_font_atlas);
-        //glTextureStorage2D(tex_font_atlas, 1, GL_RG8UI, 128, 256);
-        //glTextureSubImage2D(tex_font_atlas,
-        //    0,      //level
-        //    0, 0,   //x,y offset
-        //    128, 256,
-        ////    GL_RED_INTEGER, GL_UNSIGNED_BYTE, font_png.data() );
-
-        ////Always set reasonable texture parameters
-        //glTextureParameteri(local.tex_font_atlas, GL_TEXTURE_MIN_FILTER,GL_NEAREST);
-        //glTextureParameteri(local.tex_font_atlas,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-        //glTextureParameteri(local.tex_font_atlas,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-        //glTextureParameteri(local.tex_font_atlas,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-        // 
-
+        glTextureSubImage2D(tex_font_atlas, 0, 0,0, 128,256, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE,  font_png.data() );
+        auto err = glGetError();
+        if( err != GL_NO_ERROR )
+            __debugbreak();
+        
 
 
         // 2d array of 8x16 texture filed from font atlas
         gl::glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &font_texture);
         //                                 //levels
-        gl::glTextureStorage3D(font_texture, 1, GL_R8, 8, 16, 2);
+        gl::glTextureStorage3D(font_texture, 1, GL_R8UI, 8, 16, 256);
         //Always set reasonable texture parameters
         glTextureParameteri(font_texture,   GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTextureParameteri(font_texture,   GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -183,48 +187,32 @@ struct App
         glTextureParameteri(font_texture,   GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
 
 
-        //const int L_sz = 8*16*4; // GL_R8UI
-        //t L[L_sz] = {0};
-        char L[] = {
-          0,  0,  0,  0,  0,  0,  0,  0,
-          0,  0,  0,  0,  0,  0,  0,  0,
-          0,  0,  0,  0,  0,  0,  0,  0,
-          0,  0,  0,  0,  0,  0,  0,  0,
-          0,  0,  0,  0,  0,  0,  0,  0,
-          0,  0,  0,  0, -1, -1,  0,  0,
-          0,  0,  0, -1,  0, -1,  0,  0,
-          0,  0, -1,  0,  0, -1,  0,  0,
-          0,  0, -1,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1, -1, -1, -1, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0,  0,  0,  0,  0,  0,  0,  0,
+        int srcX = 0, srcY = 0, srcZ = 0, i = 0;
+        for(srcY = 0;  srcY < 16;  ++srcY)
+        {
+            for(srcX = 0; srcX < 16; ++srcX)
+            {
+                glCopyImageSubData(
+                    tex_font_atlas,
+                    GL_TEXTURE_2D,
+                    0, //The mipmap level to read from the source.
+                    srcX*8,
+                    srcY*16,
+                    srcZ,
+                    font_texture, GL_TEXTURE_2D_ARRAY,
+                    0, //destLevel
+                    0, //dstX
+                    0, //dstY
+                    i, //dstZ
+                    8, 16, 
+                    1); // The depth of the region to be copied
+                i++;
+            }
+        }
 
-          0,  0,  0,  0,  0,  0,  0,  0,
-          0,  0,  0,  0,  0,  0,  0,  0,
-          0, -1, -1, -1,  0,  0,  0,  0,
-          0, -1,  0,  0, -1,  0,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1, -1, -1, -1, -1,  0,  0,
-          0, -1,  0,  0,  1,  0,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1,  0,  0,  0, -1,  0,  0,
-          0, -1, -1, -1, -1,  0,  0,  0,
-          0,  0,  0,  0,  0,  0,  0,  0,
-          0,  0,  0,  0,  0,  0,  0,  0,
-
-        };
-        assert(sizeof(L)==256);
 
         // Copy subimages of letters from atlas to tex-ar-2d
-        int i = 0;
+        //int i = 0;
         //for( int yoff=0; yoff < (256/16); yoff++ )
         //{
         //    for(int xoff=0; xoff < (128/8); xoff++)
@@ -245,28 +233,23 @@ struct App
         //            L);
         //    }
         //}
-#include <pshpack1.h>
-        struct rgb_t { char r; } color[8*16];
-#include <poppack.h>
 
-        
-        for( i = 0; i < 2; ++i)
-        {
-            char *data = &L[i*8*16];
-            glTextureSubImage3D(font_texture, 
-                0, //level (mip)
-                0, //xoffset
-                0, //yoffest
-                i, //zoffset (for 2darray it is index)
-                8, 16, // w, h
-                1, // depth ??
-                GL_RED, GL_UNSIGNED_BYTE, data );
-        
-        }
-        // ёбаный пиздец, неужели так сложно было в СуперБиблейцам7 нормальный пример привести без всяких фреймворков, а?
-        // неделя ебли! Неужели сложно было давать нормальные ОДИНКОВЫЕ названия однотиповых аргументов!?
-        // Неужели когда рассказываешь про текстуру трудно поподробнее остновиться на параметрах и отличиях GL_RED От GL_RED_INTEGER?
-
+                             
+        //
+        //for( i = 0; i < 2; ++i)
+        //{
+        //    char *data = &L[i*8*16];
+        //    glTextureSubImage3D(font_texture, 
+        //        0, //level (mip)
+        //        0, //xoffset
+        //        0, //yoffest
+        //        i, //zoffset (for 2darray it is index)
+        //        8, 16, // w, h
+        //        1, // depth ??
+        //        GL_RED, GL_UNSIGNED_BYTE, data );
+        //
+        //}
+   
         // texture for ascii text buffer
         glCreateTextures(GL_TEXTURE_2D, 1, &text_buffer);
         glTextureStorage2D(text_buffer, 1, GL_R8UI, 1024, 1024);
@@ -278,13 +261,18 @@ struct App
         glTextureParameteri(text_buffer, GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
         glTextureParameteri(text_buffer, GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
 
-        vector<char> text(1024*1024);
 
-        for( unsigned i = 0; i < text.size(); ++i )
-        {
-            text[i] = i % 2;
-        }                           // levl,offx,offy, w,  h,
-        glTextureSubImage2D(text_buffer, 0, 0,0,      1024, 1024, GL_RED_INTEGER, GL_UNSIGNED_BYTE, text.data() );
+        char text[256*256] = {0};
+        strcpy(text, "Some text data. Какой то матье его текст!");
+        glTextureSubImage2D(text_buffer, 0, 0,0,      256, 256, GL_RED_INTEGER, GL_UNSIGNED_BYTE, text );
+
+        //vector<char> text(1024*1024);
+        //for( unsigned i = 0; i < text.size(); ++i )
+        //{
+        //    text[i] = rand()%256;
+        //    
+        //}                           // levl,offx,offy, w,  h,
+        //glTextureSubImage2D(text_buffer, 0, 0,0,      1024, 1024, GL_RED_INTEGER, GL_UNSIGNED_BYTE, text.data() );
 
 
     }
@@ -323,39 +311,44 @@ R"(#version 440 core
 void main()
 {
     // TRINGLE STRIP      x    y     z     w
-    const vec4[4] q = { {0.0, 0.0,  0.0,  1.0}, 
-                        {0.0, 1.0,  0.0,  1.0}, 
-                        {1.0, 0.0,  0.0,  1.0},
-                        {1.0, 1.0,  0.0,  1.0} };
+    const vec4[4] q = { {1.5, 0.0,   0.0,  1.0}, 
+                        {1.5, 2.0,   0.0,  1.0}, 
+                        {2.0, 0.0,   0.0,  1.0},
+                        {2.0, 2.0,   0.0,  1.0} };
         vec4 v = q[gl_VertexID];
-        v.x -= 0.5;
-        v.y -= 0.5;
+        v.x -= 1.0;
+        v.y -= 1.0;
         gl_Position = v;
 }
 )";
         CompileShader(vs, vs_src);
 
         static const char * fs_src =
-        {
-            "#version 440 core\n"
-            "layout (origin_upper_left) in vec4 gl_FragCoord;\n"
-            "layout (location = 0) out vec4 o_color;\n"
-            "layout (binding = 0) uniform isampler2D text_buffer;\n"
-            "layout (binding = 1) uniform isampler2DArray font_texture;\n"
-            "layout (location = 0)uniform ivec2 quad_offset;"
-            "void main(void)\n"
-            "{\n"
-            "    ivec2 frag_coord = ivec2(gl_FragCoord.xy) - quad_offset;\n"
-            "    ivec2 char_size = textureSize(font_texture, 0).xy;\n"
-            "    ivec2 char_location = frag_coord / char_size;\n"
-            "    ivec2 texel_coord = frag_coord % char_size;\n"
-            "    int character = texelFetch(text_buffer, char_location, 0).x;\n"
-            "    float val = texelFetch(font_texture, ivec3(texel_coord, character), 0).x;\n"
-            "    if (val == 0.0)\n"
-            "        discard;\n"
-            "    o_color = vec4(0.0, 0.0, 0.0, 1.0);\n"
-            "}\n"
-        };
+        {R"(
+#version 440 core
+layout (origin_upper_left) in vec4 gl_FragCoord;
+layout (location = 0) out vec4 o_color;
+layout (binding = 0) uniform isampler2D text_buffer;
+layout (binding = 1) uniform isampler2DArray font_texture;
+
+layout (location = 3) uniform ivec4 pxXY;
+void main()
+{
+    ivec2 frag_coord = ivec2(gl_FragCoord.xy) - pxXY.xy;
+    if(frag_coord.x > pxXY[2] )
+       discard;
+
+    ivec2 char_size = textureSize(font_texture, 0).xy;
+    ivec2 char_location = frag_coord / char_size;
+    ivec2 texel_coord = frag_coord % char_size;
+    int character = texelFetch(text_buffer, char_location, 0).x;
+    float val = texelFetch(font_texture, ivec3(texel_coord, character), 0).x;
+    if (val == 0.0)
+        discard;
+    o_color = vec4(0.0, 0.0, 0.0, 1.0);
+}
+        )"};
+
         auto fs_src2 =
 R"(
 #version 440 core
@@ -383,15 +376,13 @@ void main()
         glActiveTexture(GL_TEXTURE1);
         glBindTextureUnit(1, font_texture);
         
-        int H = Window.H;
-        int quad_offset_x = 200,
-            quad_offset_y = 200;
 
         
+        int pxX = 1.5f*Window_Width/2;
+        int pxXX = 2.0f*Window_Width/2 - 8 - pxX;
+        glUniform4i(3, pxX, 0, pxXX, 0 ); 
 
-        glUniform2i(0, quad_offset_x, quad_offset_y);
-
-        glClearColor(0.7, 0.7, 0.7, 1.0);
+        glClearColor(0.7f, 0.7f, 0.7f, 1.0f);
 
         
         isRun = true;
@@ -403,7 +394,14 @@ void main()
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
     void OnQuit() { isRun = false; }
-    bool IsRun() const { return isRun; }
+    union {
+        App *app;
+        struct Property_IsRun {
+            App *app;
+            operator bool() const { return app->isRun; }
+        }IsRun;
+    };
+    //bool IsRun() const { return isRun; }
 }app;
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -412,7 +410,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ int       nCmdShow)
 {
     try {
-        SDL.Init();
+        if(SDL_Init(SDL_INIT_EVERYTHING) < 0)
+            throw SDLError(SDL_GetError());
+
         SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
@@ -423,12 +423,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
         SDL_GL_LoadLibrary(NULL);
 
-        Window.Create("Subcity", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 800,
-            SDL_WINDOW_OPENGL
-            
-            );
+        Window = SDL_CreateWindow("Subcity", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 800,
+            SDL_WINDOW_OPENGL);
 
-        glContext.Create(Window);
+        glContext = SDL_GL_CreateContext(Window);
+        auto er = SDL_GetError();
+        if(er[0])
+            throw SDLError(er);
+
         glbinding::Binding::initialize();
 
         {
@@ -441,12 +443,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
         SDL_GL_SetSwapInterval(1);
         
-        app.Init();
 
         SDL_Event event;
         __int64 ticks = 0;
         
-        while(app.IsRun() )
+        SDL_GetWindowSize(Window, &Window_Width, &Window_Height);
+        glViewport(0,0, Window_Width, Window_Height);
+        app.Init();
+
+        while( app.IsRun )
         {
             while( SDL_PollEvent(&event) ) 
             {            
@@ -455,12 +460,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                 if( event.type == SDL_WINDOWEVENT ) {
                     if( event.window.event == SDL_WINDOWEVENT_RESIZED )
                     {
-                        glViewport(0,0, Window.W, Window.H); // todo view matrix need recalculation
+                        glViewport(0,0, Window_Width, Window_Height); // todo view matrix need recalculation
                     }
                 }
             }
             app.Run();
-            SDL_GL_SwapWindow(Window.impl);
+            SDL_GL_SwapWindow(Window);
             ticks++;
         }
         char sTickCount[1024] = {0};
@@ -475,9 +480,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     {
         MessageBoxA(0, E.msg, "GLError", MB_ICONERROR);
     }
-    catch(sdl::Error &E)
+    catch(SDLError &E)
     {
-        MessageBoxA(0, E.msg, "SDL error.", MB_ICONERROR);
+        MessageBoxA(0, E.msg, "SDL ERROR", MB_ICONERROR);
     }
     catch(...)
     {
